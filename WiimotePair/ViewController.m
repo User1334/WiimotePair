@@ -45,7 +45,7 @@
 
 - (void)showPairingResultAlertWithTitle:(NSString*)title text:(NSString*)text {
     [self showAlertWithTitle:title text:text callback:^{
-        if (self->_deviceInquiry == nil) {
+        if (self->_deviceInquiry != nil) {
             [self->_deviceInquiry start];
         }
     }];
@@ -135,7 +135,6 @@
 
 - (void)devicePairingPINCodeRequest:(id)sender {
     IOBluetoothDevicePair* pair = (IOBluetoothDevicePair*)sender;
-    IOBluetoothDevice* device = [sender device];
 
     IOBluetoothHostController* controller = [IOBluetoothHostController defaultController];
     
@@ -154,11 +153,18 @@
 
     uint64_t key;
     memcpy(&key, code.data, sizeof(key));
-    
-    // This is what [_devicePair replyPINCode:PINCode:] essentially does.
-    // However, that method does a bunch of NSString-ification on the PIN code first.
-    // We don't want this, so we replicate its behaviour here while skipping the NSString stuff.
-    [[IOBluetoothCoreBluetoothCoordinator sharedInstance] pairPeer:[device classicPeer] forType:[pair currentPairingType] withKey:@(key)];
+
+    // replyPINCodeWithNumber: (macOS 26+) passes the PIN as NSNumber directly to the pairing agent
+    // via XPC, avoiding the NSString-ification bug in replyPINCode:PINCode: that corrupts binary PINs.
+    // On macOS 12-15 we replicate the same behaviour via pairPeer:forType:withKey: directly.
+    if ([pair respondsToSelector:@selector(replyPINCodeWithNumber:)]) {
+        [pair replyPINCodeWithNumber:@(key)];
+    } else {
+        IOBluetoothDevice* device = [sender device];
+        [[IOBluetoothCoreBluetoothCoordinator sharedInstance] pairPeer:[device classicPeer]
+                                                               forType:[pair currentPairingType]
+                                                               withKey:@(key)];
+    }
 }
 
 - (void)devicePairingFinished:(id)sender error:(IOReturn)error {

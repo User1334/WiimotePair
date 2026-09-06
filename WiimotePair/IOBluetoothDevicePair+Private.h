@@ -5,5 +5,6 @@
 
 - (void)setUserDefinedPincode:(BOOL)enabled;
 - (NSUInteger)currentPairingType;
+- (void)replyPINCodeWithNumber:(NSNumber*)key;
 
 @end
